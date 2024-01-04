@@ -27,21 +27,17 @@ Das Plugin verwendet Composer für das Autoloading von Klassen. Führen Sie die 
 
 2. Navigieren Sie im Terminal oder in der Kommandozeile zum Wurzelverzeichnis des Plugins und führen Sie den folgenden Befehl aus, um die Abhängigkeiten zu installieren:
 
-composer install
+ `composer install`
 
-markdown
-Copy code
 
 3. Um das Autoloading einzurichten, führen Sie den folgenden Befehl aus:
 
-composer dump-autoload
-
-perl
-Copy code
+ `composer dump-autoload`
 
 ## Konfiguration
 
 Nach der Installation finden Sie die Plugin-Einstellungen im Admin-Bereich von WordPress unter 'News Importer'. Dort können Sie den Importprozess manuell auslösen.
+
 
 ## Weiterentwicklung
 
