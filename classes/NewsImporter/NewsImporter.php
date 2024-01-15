@@ -118,7 +118,7 @@ class NewsImporter
             'post_content' => $item['content']['rendered'],
             'post_title' => $item['title']['rendered'],
             'post_status' => 'publish',
-            'post_type' => 'post',
+            'post_type' => 'news',
             'meta_input' => array(
                 'import_id' => $item['id'], // oder eine andere eindeutige ID
                 'import_lang' => $lang,
