@@ -29,6 +29,8 @@ class NewsImporter
         $this->api_handler = new RestAPIHandler($urls);
 
         add_action('admin_menu', array($this, 'add_admin_menu'));
+
+//        add_action('init', array($this, 'translate_all_posts'));
     }
 
     // Fügt einen Menüpunkt im Admin-Bereich hinzu
@@ -228,18 +230,13 @@ class NewsImporter
     private function link_translations()
     {
         $translations = [];
-
         foreach ($this->posts_to_link as $lang => $posts) {
             foreach ($posts as $original_id => $post_id) {
-                $translations[$lang] = $post_id;
+                $translations[$original_id][$lang] = $post_id;
             }
         }
-
-        foreach ($this->posts_to_link as $posts) {
-            foreach ($posts as $post_id) {
-                pll_save_post_translations($translations);
-            }
-        }
+        foreach ($translations as $translation)
+            pll_save_post_translations($translation);
     }
 
 }
