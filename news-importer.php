@@ -8,6 +8,7 @@ Author: WP Plugin Lab
 
 // Sicherstellen, dass das Skript nicht direkt aufgerufen wird.
 require_once 'news-importer.php';
+require_once 'views/bulk-post-updater.php';
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -29,9 +30,10 @@ spl_autoload_register(function ($class) {
 });
 
 // Initialisieren des Plugins.
-function news_importer_init() {
-
+function news_importer_init()
+{
     new \NewsImporter\NewsImporter();
+//    new BulkPostUpdater();
 }
 
 add_action('plugins_loaded', 'news_importer_init');

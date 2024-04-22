@@ -16,59 +16,57 @@ class RestAPIHandler
     {
         $this->base_urls = $urls;
     }
-
-    // Holt die News-Daten von den angegebenen URLs
     public function fetch_news()
     {
         $all_news = [];
+
         foreach ($this->base_urls as $url) {
             $url = sanitize_url($url);
-            // HTTP-Anfrage an die API senden
+
+            // HTTP request to the API
             $response = wp_remote_get($url);
-            // Prüfen, ob die Anfrage erfolgreich war
+
+            // Check if the request was successful
             if (is_wp_error($response)) {
-                continue; // Bei einem Fehler mit der nächsten URL fortfahren
+                continue; // Skip to the next URL in case of an error
             }
 
-            // Durch alle Seiten der response iterieren
-            $posts = json_decode(wp_remote_retrieve_body($response));
-            $data = $this->iterate_through_pages($url, $posts, true);
+            // Parse the JSON response
+            $posts = json_decode(wp_remote_retrieve_body($response), true);
 
-            // Überprüfen, ob die Daten gültig sind
-            if (!empty($data) && is_array($data)) {
-                $all_news = array_merge($all_news, $data);
-            }
+            // Fetch all pages of results
+            $all_news = array_merge($all_news, $this->fetch_all_pages($url, $posts));
         }
 
         return $all_news;
     }
 
-    public function iterate_through_pages($api_url, $data, $page = 1)
-
+    public function fetch_all_pages($api_url, $data, $page = 1)
     {
-        $next = [];
         $per_page = 10; // Number of items per page
         $args = array(
             'per_page' => $per_page,
             'page' => $page,
         );
-// Add query parameters to the URL
-        $request_url = add_query_arg($args, $api_url);
 
-// Make the request
+        $request_url = add_query_arg($args, $api_url);
         $response = wp_remote_get($request_url);
+
         if (is_wp_error($response)) {
-            return $data;
+            return $data; // Return existing data if request fails
         }
+
         $next = json_decode(wp_remote_retrieve_body($response), true);
         $data = array_merge($data, $next);
 
+        // Check if there are more pages to fetch
         if (count($next) == $per_page) {
             $page++;
-            $this->iterate_through_pages($api_url, $data, $page);
+            $data = $this->fetch_all_pages($api_url, $data, $page); // Recursively fetch next page
         }
-        return $data;
 
+        return $data;
     }
+
 
 }
