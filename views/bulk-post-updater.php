@@ -99,7 +99,7 @@ class BulkPostUpdater
         );
 
         // Define the regular expression pattern to match the content within brackets
-        $pattern = '/\[:([a-zA-Z]+)\](.*?)\[:\]/';
+        $pattern = '/\[:([\w]{0,2})\]([^\[:]*)/g';
 
         // Array to store extracted content for each language
         $new_posts = [];
