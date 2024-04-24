@@ -137,7 +137,7 @@ class BulkPostUpdater
         foreach ($new_posts as $language => $new_post) {
             // Define new post data
             $new_post_data = array(
-                'post_status' => 'publish',
+                'post_status' => $origin_post->post_status,
                 'post_author' => $origin_post->post_author,
                 'post_type' => $origin_post->post_type, // Change to the appropriate post type
                 // Add any other necessary post data
@@ -193,35 +193,4 @@ class BulkPostUpdater
         }
         return $new_post;
     }
-
-//    function iterate_through_post_data_array($data)
-//    {
-//        if (is_array($data)) {
-//            foreach ($data as $key => $value) {
-//                if (is_array($value)) {
-//                    $this->iterate_through_post_data_array($value);
-//                } else {
-//                    $this->match_and_assign_to_post_data($value);
-//                }
-//            }
-//        } else {
-//            $this->match_and_assign_to_post_data($data);
-//        }
-//    }
-//
-//    function match_and_assign_to_post_data($data)
-//    {
-//        if (!empty($data) && is_string($data)) {
-//            preg_match_all(BulkPostUpdater::$pattern, $data, $matches, PREG_SET_ORDER);
-//            foreach ($matches as $match) {
-//                if (is_array($match) && count($match) == 3) {
-//                    // Extract language code and content
-//                    $lang_code = $match[1];
-//                    $content = $match[2];
-//                    // Store the content for the language
-//                    $new_posts[$lang_code][$content_type][$key] = $content;
-//                }
-//            }
-//        }
-//    }
 }
