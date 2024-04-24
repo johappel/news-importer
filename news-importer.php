@@ -33,7 +33,7 @@ spl_autoload_register(function ($class) {
 function news_importer_init()
 {
     new \NewsImporter\NewsImporter();
-//    new BulkPostUpdater();
+    new BulkPostUpdater();
 }
 
 add_action('plugins_loaded', 'news_importer_init');
