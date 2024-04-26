@@ -5,6 +5,14 @@ class BulkPostUpdater
 
     static private $pattern = '/\[:([\w]{0,2})\]([^\[[]*)/';
 
+    static private $tax_blacklist = [
+        'post_translations',
+        'term_language',
+        'term_translations',
+        'wptheme',
+        'language',
+        'nav_menu'];
+
 
     // Add a menu item to the admin menu
     function __construct()
@@ -44,7 +52,6 @@ class BulkPostUpdater
                 $posts = get_posts($args);
                 foreach ($posts as $post) {
                     $this->extract_and_create_posts($post);
-                    break;
                 }
 
 
@@ -90,10 +97,14 @@ class BulkPostUpdater
         }
 
         // Get post meta data
-        $origin_post_meta = get_post_meta($origin_post->ID);
-
+        $origin_post_meta = get_post_meta($origin_post->ID, '', true);
+        foreach ($origin_post_meta as $post_meta_key => $post_meta_value) {
+            if (is_array($post_meta_value))
+                $origin_post_meta[$post_meta_key] = get_post_meta($origin_post->ID, $post_meta_key, true);
+        }
         // Get post taxonomies
         $all_tax = get_post_taxonomies($origin_post->ID);
+
 
         $origin_post_taxonomies = wp_get_post_terms($origin_post->ID, $all_tax);
 
@@ -117,55 +128,71 @@ class BulkPostUpdater
 
             if (!empty($content_value) && is_string($content_value)) {
                 preg_match_all(BulkPostUpdater::$pattern, $content_value, $matches, PREG_SET_ORDER);
+
+
                 foreach ($matches as $match) {
                     if (is_array($match) && count($match) == 3) {
                         // Extract language code and content
                         $lang_code = $match[1];
                         $content = $match[2];
-                        // Store the content for the language
-                        $new_posts[$lang_code][$content_type] = $content;
+                        if (!empty($lang_code) && !empty($content)) {
+                            // Store the content for the language
+                            $new_posts[$lang_code][$content_type] = $content;
+                        }
                     }
                 }
             }
 
         }
-
         // Array to store created post IDs for each language
         $post_bundle = [];
+        if (count($new_posts) > 0) {
+            // Loop through extracted content for each language
+            foreach ($new_posts as $language => $new_post) {
+                if (empty($new_post['post_title']) || empty($new_post['post_content']))
+                    continue;
+                // Define new post data
+                $new_post_data = array(
+                    'post_title' => $new_post['post_title'], // Original post title
+                    'post_content' => $new_post['post_content'], // Original post content
+                    'post_excerpt' => $new_post['post_excerpt'] ?: '',
+                    'post_status' => $origin_post->post_status,
+                    'post_author' => $origin_post->post_author,
+                    'post_type' => $origin_post->post_type, // Change to the appropriate post type
+                    // Add any other necessary post data
+                );
+                // Create a new post with the extracted content
+                $new_post_id = wp_insert_post($new_post_data, true);
 
-        // Loop through extracted content for each language
-        foreach ($new_posts as $language => $new_post) {
-            // Define new post data
-            $new_post_data = array(
-                'post_status' => $origin_post->post_status,
-                'post_author' => $origin_post->post_author,
-                'post_type' => $origin_post->post_type, // Change to the appropriate post type
-                // Add any other necessary post data
-            );
-
-            // Create a new post with the extracted content
-            $new_post_id = wp_insert_post($new_post_data);
-
-            // Set language meta for the post
-            update_post_meta($new_post_id, 'language_code', $language);
+                if (is_wp_error($new_post_id))
+                    continue;
+                // Set language meta for the post
+                update_post_meta($new_post_id, 'language_code', $language);
 
 
-            $new_post_meta = $this->get_language_array_of_post_meta($origin_post_meta, $language);
-            foreach ($new_post_meta as $meta_key => $meta_value) {
-                update_post_meta($new_post_id, $meta_key, $meta_value);
+                $new_post_meta = $this->get_language_array_of_post_meta($origin_post_meta, $language);
+                foreach ($new_post_meta as $meta_key => $meta_value) {
+                    update_post_meta($new_post_id, $meta_key, $meta_value);
+                }
+
+
+                foreach ($origin_post_taxonomies as $taxonomy) {
+                    if (!in_array($taxonomy->taxonomy, self::$tax_blacklist))
+                        wp_set_post_terms($new_post_id, $taxonomy->term_id, $taxonomy->taxonomy);
+                }
+
+                pll_set_post_language($new_post_id, $language);
+
+                // Store the created post ID for the language
+                $post_bundle[$language] = $new_post_id;
             }
 
-            // Set taxonomies for the new post
-            foreach ($origin_post_taxonomies as $taxonomy) {
-                wp_set_post_terms($new_post_id, $taxonomy->term_id, $taxonomy->taxonomy);
+            // Save post translations using Polylang
+            if (count($post_bundle) > 0) {
+//                var_dump(pll_save_post_translations($post_bundle));
+                pll_save_post_translations($post_bundle);
             }
-
-            // Store the created post ID for the language
-            $post_bundle[$origin_post->ID][$language] = $new_post_id;
         }
-
-        // Save post translations using Polylang
-        pll_save_post_translations($post_bundle);
     }
 
     function get_language_array_of_post_meta($origin_post_meta, $language)
@@ -178,16 +205,20 @@ class BulkPostUpdater
 
             } else {
                 preg_match_all(BulkPostUpdater::$pattern, $meta_value, $matches, PREG_SET_ORDER);
-                foreach ($matches as $match) {
-                    if (is_array($match) && count($match) == 3) {
-                        // Extract language code and content
-                        $match_lang = $match[1];
-                        $content = $match[2];
-                        if ($language === $match_lang) {
-                            // Store the content for the language
-                            $new_post[$meta_key] = $content;
+                if (count($matches) > 0) {
+                    foreach ($matches as $match) {
+                        if (is_array($match) && count($match) == 3) {
+                            // Extract language code and content
+                            $match_lang = $match[1];
+                            $content = $match[2];
+                            if ($language === $match_lang) {
+                                // Store the content for the language
+                                $new_post[$meta_key] = $content;
+                            }
                         }
                     }
+                } else {
+                    $new_post[$meta_key] = $meta_value;
                 }
             }
         }
