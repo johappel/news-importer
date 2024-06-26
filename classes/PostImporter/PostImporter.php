@@ -50,13 +50,13 @@ class NewsImporter
     public function admin_page()
     {
         if (!empty($_POST['import_news'])) {
-            $this->import_news();
+            $this->rpi_import_news();
         }
         include dirname(dirname(__DIR__)) . '/views/admin-page.php';
     }
 
     // Importiert die News-Beiträge
-    private function import_news()
+    public  function rpi_import_news($api_urls = '', $status_ignorelist = [] , $dryrun = false, $logging = true)
     {
         // Überprüfen, ob Polylang-Funktionen vorhanden sind
         if (!function_exists('pll_save_post_translations') || !function_exists('pll_set_post_language')) {
@@ -119,6 +119,8 @@ class NewsImporter
             'post_author' => 1, // oder einen dynamischen Autor
             'post_content' => $item['content']['rendered'],
             'post_title' => $item['title']['rendered'],
+            'post_date' => $item['date'],
+            'post_modified' => $item['modified'],
             'post_status' => 'publish',
             'post_type' => 'news',
             'meta_input' => array(
