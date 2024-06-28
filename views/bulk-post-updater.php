@@ -158,6 +158,8 @@ class BulkPostUpdater
                     'post_excerpt' => $new_post['post_excerpt'] ?: '',
                     'post_status' => $origin_post->post_status,
                     'post_author' => $origin_post->post_author,
+                    'post_date' => $origin_post->post_date,
+                    'post_modified' => $origin_post->post_modified,
                     'post_type' => $origin_post->post_type, // Change to the appropriate post type
                     // Add any other necessary post data
                 );

@@ -7,6 +7,8 @@ Author: WP Plugin Lab
 */
 
 // Sicherstellen, dass das Skript nicht direkt aufgerufen wird.
+require_once 'classes/PostImporter/PostImporter.php';
+
 require_once 'news-importer.php';
 require_once 'views/bulk-post-updater.php';
 if (!defined('ABSPATH')) {

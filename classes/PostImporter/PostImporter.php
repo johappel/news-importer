@@ -56,7 +56,7 @@ class NewsImporter
     }
 
     // Importiert die News-Beiträge
-    public  function rpi_import_news($api_urls = '', $status_ignorelist = [] , $dryrun = false, $logging = true)
+    public function rpi_import_news($api_urls = '', $status_ignorelist = [], $dryrun = false, $logging = true)
     {
         // Überprüfen, ob Polylang-Funktionen vorhanden sind
         if (!function_exists('pll_save_post_translations') || !function_exists('pll_set_post_language')) {
@@ -114,46 +114,70 @@ class NewsImporter
 
     private function create_post($item, $lang)
     {
-        // Annahme: $item enthält alle notwendigen Informationen
-        $post_data = array(
-            'post_author' => 1, // oder einen dynamischen Autor
-            'post_content' => $item['content']['rendered'],
-            'post_title' => $item['title']['rendered'],
-            'post_date' => $item['date'],
-            'post_modified' => $item['modified'],
-            'post_status' => 'publish',
-            'post_type' => 'news',
-            'meta_input' => array(
-                'import_id' => $item['id'], // oder eine andere eindeutige ID
-                'import_lang' => $lang,
-            ),
-        );
+        $post_id = null;
 
-        // Erstellen des Beitrags
-        $post_id = wp_insert_post($post_data);
+        $existing_post = get_posts(['post_type' => 'news',
+            'meta_query' => array(
+                array(
+                    'key' => 'import_id',
+                    'value' => $item['id'],
+                ),
+                array(
+                    'key' => 'import_lang',
+                    'value' => $lang,
+                )
+            )]);
+        if (count($existing_post) < 1) {
+            $post_data = array(
+                'post_author' => 1, // oder einen dynamischen Autor
+                'post_content' => $item['content']['rendered'],
+                'post_title' => $item['title']['rendered'],
+                'post_date' => wp_date('Y-m-d H:i:s', strtotime($item['date'])),
+                'post_modified' => wp_date('Y-m-d H:i:s', strtotime($item['modified'])),
+                'post_status' => 'publish',
+                'post_type' => 'news',
+                'meta_input' => array(
+                    'import_id' => $item['id'], // oder eine andere eindeutige ID
+                    'import_lang' => $lang,
+                ),
+            );
 
-        // Überprüfen, ob der Beitrag erfolgreich erstellt wurde.
-        if ($post_id && !is_wp_error($post_id)) {
 
-            // Medieninhalte hinzufügen
-            if (!empty($item['featured_media'])) {
-                $this->import_media($item['featured_media'], $post_id);
+            // Erstellen des Beitrags
+            $post_id = wp_insert_post($post_data, false, false);
+
+            // Überprüfen, ob der Beitrag erfolgreich erstellt wurde.
+            if ($post_id && !is_wp_error($post_id)) {
+
+                // Medieninhalte hinzufügen
+                if (!empty($item['featured_media'])) {
+                    $this->import_media($item['featured_media'], $post_id);
+                }
+
+                // Kategorien und Tags hinzufügen
+                if (!empty($item['categories'])) {
+                    $this->assign_terms($post_id, $item['categories'], 'category', $lang);
+                }
+                if (!empty($item['tags'])) {
+                    $this->assign_terms($post_id, $item['tags'], 'post_tag', $lang);
+                }
+
+                if (function_exists('pll_get_term_translations')) {
+                    $lang_term = get_term_by('slug', $lang, 'post_tag');
+                    wp_set_object_terms($post_id, $lang_term->term_id, 'post_tag', true);
+                    //todo selection of  lang term not reliable find better way
+
+                }
+
+                // Polylang-Sprache zuweisen
+                pll_set_post_language($post_id, $lang);
+
+                $this->log("Beitrag erstellt: '{$post_data['post_title']}' in Sprache: '{$lang}'");
+
             }
-
-            // Kategorien und Tags hinzufügen
-            if (!empty($item['categories'])) {
-                $this->assign_terms($post_id, $item['categories'], 'category');
-            }
-            if (!empty($item['tags'])) {
-                $this->assign_terms($post_id, $item['tags'], 'post_tag');
-            }
-
-            // Polylang-Sprache zuweisen
-            pll_set_post_language($post_id, $lang);
-
-            $this->log("Beitrag erstellt: '{$post_data['post_title']}' in Sprache: '{$lang}'");
-
         }
+        // Annahme: $item enthält alle notwendigen Informationen
+
 
         return $post_id;
     }
@@ -192,22 +216,38 @@ class NewsImporter
         return $media_id;
     }
 
-    private function assign_terms($post_id, $term_ids, $taxonomy)
+    private function assign_terms($post_id, $term_ids, $taxonomy, $lang)
     {
         foreach ($term_ids as $term_id) {
-            // Namen des Terms aus der Quelle holen
-            $term_name = get_term_by('id', $term_id, $taxonomy)->name;
 
-            // Term-ID im Zielblog übersetzen
-            $translated_term_id = $this->translate_term_id($term_name, $taxonomy);
-            if ($translated_term_id) {
-                wp_set_object_terms($post_id, $translated_term_id, $taxonomy, true);
+            if (function_exists('pll_get_term_translations')) {
+                $translated_terms = pll_get_term_translations($term_id);
+                if (key_exists($lang, $translated_terms)) {
+                    wp_set_object_terms($post_id, $translated_terms[$lang], $taxonomy, true);
+                }
+
+            } else {
+                $this->log('pll_get_term_translations function not found assigning wp default terms');
+
+                //TODO this logic might not work properly rework maybe necessary
+                // Namen des Terms aus der Quelle holen
+                $term_name = get_term_by('id', $term_id, $taxonomy)->name;
+
+                // Term-ID im Zielblog übersetzen
+                $translated_term_id = $this->translate_term_id($term_name, $taxonomy);
+                if ($translated_term_id) {
+                    wp_set_object_terms($post_id, $translated_term_id, $taxonomy, true);
+                }
             }
+
         }
     }
 
     private function translate_term_id($source_term_name, $taxonomy)
     {
+        if (function_exists('pll_get_term_translations')) {
+
+        }
         // Überprüfen, ob ein Term mit diesem Namen im Zielblog existiert.
         $term = get_term_by('name', $source_term_name, $taxonomy);
 
@@ -221,6 +261,7 @@ class NewsImporter
 
         // Überprüfen, ob die Erstellung erfolgreich war.
         if (is_wp_error($new_term)) {
+            $this->log('There has been an Error whilst creating new Terms' . $new_term->get_error_message());
             // Fehlerbehandlung, eventuell Logging.
             return null;
         }
